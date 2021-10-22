@@ -7,11 +7,12 @@ const inputDistance = document.querySelector('.form__input--distance');
 const inputDuration = document.querySelector('.form__input--duration');
 const inputCadence = document.querySelector('.form__input--cadence');
 const inputRestTime = document.querySelector('.form__input--resttime');
+const resetbutton = document.querySelector('.reset');
 
 class Exercise {
     date = new Date();
     id = (Date.now() + '').slice(-10);
-    clicks = 0
+    clicks = 0;
 
     constructor(coords, distance, duration) {
         this.coords = coords;
@@ -29,7 +30,8 @@ class Exercise {
     calcSpeed() {
         this.speed = this.distance / (this.duration / 60);
         return this.speed;
-    }
+    };
+    // Sometimes might be good to return this data in case someplace in our code need this.
 
     click() {
         this.clicks++
@@ -66,16 +68,21 @@ class App {
 
 
     constructor() {
+        // Get user's position
         this._getPosition();
+
+        // Get data from local storage
         this._getLocalStorage();
 
         form.addEventListener('submit', this._newExercise.bind(this));
         inputType.addEventListener('change', this._switchExerciseType);
-        containerExercises.addEventListener('click', this._moveToPopup.bind(this))
+        containerExercises.addEventListener('click', this._moveToPopup.bind(this));
+        resetbutton.addEventListener('click', this.reset)
     };
 
     _getPosition() {
         if (navigator.geolocation) 
+        // Make sure don't get errors in an old browser
             navigator.geolocation.getCurrentPosition(this._loadMap.bind(this), () => alert('Cannot access to your location!'));
     };
 
@@ -95,6 +102,7 @@ class App {
         this.#map.on('click', this._showForm.bind(this));
 
         this.#exercises.forEach(exercise => this._renderExerciseMarker(exercise));
+        // _rederExerciseMarker has to be put after the map has been loaded, so put that logic in the method of _loadMap
     };
 
     _showForm(mapE) {
@@ -102,9 +110,11 @@ class App {
         this.#mapEvent = mapE;
         form.classList.remove('hidden');
         inputDistance.focus();
+        // It's inside of this event handler that gets access to the mapEvent, which will contain the coordinates. But don't need it here. So have to define the mapEvent as a global variable, and copy it to the event(mapE) in this handler function.
     };
 
     _hideForm() {
+        // Empty inputs
         inputDistance.value = inputDuration.value = inputCadence.value = inputRestTime.value = '';
         form.style.display = 'none';
         form.classList.add('hidden');
@@ -126,34 +136,42 @@ class App {
         const data = JSON.parse(localStorage.getItem('exercises'));
         if(!data) return;
         this.#exercises = data;
-        this.#exercises.forEach(exercise => this._renderExercises(exercise))
+        this.#exercises.forEach(exercise => this._renderExercises(exercise));
+        resetbutton.classList.remove('hidden');
     };
 
     _newExercise(e) {
         e.preventDefault();
+
+        // Small helper functions
         const validInput = (...inputs) => inputs.every(input => Number.isFinite(input));
         const allPositive = (...inputs) => inputs.every(input => input > 0);
 
+        // Get data from form
         const type = inputType.value;
         const distance = +inputDistance.value;
         const duration = +inputDuration.value;
         const { lat, lng } = this.#mapEvent.latlng;
         let exercise;
 
+        // If exercise is running, create running object
         if (type === 'running') {
             const cadence = +inputCadence.value;
 
+            // Check if data is valid
             if (!validInput(distance, duration, cadence) || !allPositive(distance, duration, cadence)) {
-                return alert('Check your inputs again! Inputs have to be positive numbers.')
+                return alert('Check your inputs again! Inputs have to be positive numbers.');
             };
 
             exercise = new Running([lat, lng], distance, duration, cadence);
             console.log(exercise.id);
         };
 
+        // If exercise is swimming, create swimming object
         if (type === 'swimming') {
             const resttime = +inputRestTime.value;
 
+            // Check if data is valid
             if (!validInput(distance, duration, resttime) || !allPositive(distance, duration)) {
                 return alert('Check your inputs again! Inputs have to be positive numbers.')
             };
@@ -161,16 +179,23 @@ class App {
             exercise = new Swimming([lat, lng], distance, duration, resttime);
         };
 
+        // Add new object to exercises array
         this.#exercises.push(exercise);
         console.log(exercise);
 
+        // Render exercise on list
         this._renderExercises(exercise);
 
+        // Render exercise on map as marker
         this._renderExerciseMarker(exercise);
 
+        // Hide form + clear inputs
         this._hideForm();
 
+        // Set local storage to all exercises
         this._setLocalStorage();
+
+        resetbutton.classList.remove('hidden');
 
     };
 
@@ -228,10 +253,11 @@ class App {
 
     _moveToPopup(e) {
         const exerciseEl = e.target.closest('.exercise');
-        console.log(exerciseEl);
+        console.log(exerciseEl); // The click is on the form, not on map
 
         if (!exerciseEl) return;
 
+        // Find the element in the exercises array
         const exercise = this.#exercises.find(exer => exer.id === exerciseEl.dataset.id);
         console.log(this.#exercises);
         console.log(exercise);
@@ -241,12 +267,15 @@ class App {
             pan: { duration: 1 }
         });
 
+        // Using the public interface
         exercise.click();
     };
 
     reset() {
         localStorage.removeItem('exercises');
-        location.reload();
+        location.reload(); // Reload the page programmatically
+        resetbutton.style.display = 'none';
+        resetbutton.classList.add('hidden');
     }
 }
 
